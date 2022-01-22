@@ -6,7 +6,7 @@ import asciichartpy as chart
 from math import nan
 
 from spyql.log import user_error
-from spyql.nulltype import NULL
+from spyql.nulltype import NULL, NullSafeDict
 
 
 class Writer:
@@ -203,18 +203,21 @@ class SQLWriter(Writer):
             + ") VALUES {};\n"
         )
 
+    def transform(self, v):
+        if isinstance(v, int) or isinstance(v, float):
+            return str(v)
+        if v is NULL or v is None:
+            return "NULL"
+        if isinstance(v, (dict, list)):
+            return "'{}'::JSONB".format(jsonlib.dumps(v).replace("'", "''"))
+        return "'{}'".format(str(v).replace("'", "''"))
+
     def writerow(self, row):
         self.chunk.append(
             "({})".format(
                 ",".join(
                     [
-                        str(v)
-                        if isinstance(v, int) or isinstance(v, float)
-                        else (
-                            "NULL"
-                            if v is NULL or v is None
-                            else "'{}'".format(str(v).replace("'", "''"))
-                        )
+                        self.transform(v)
                         for v in row
                     ]
                 )
